@@ -26,6 +26,7 @@ jobs:
       run: |
         set -e
         cd terraform
+        terraform fmt
         terraform fmt -diff -check
         terraform init
         terraform validate
