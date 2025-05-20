@@ -8,7 +8,6 @@ terraform {
 }
 variable "aws_access_key" {}
 variable "aws_secret_key" {}
-variable "private_key_path" {default = "C:/projects/Work/EC2-Demo/admin-key-pair.pem"}
 variable "key_name" {default = "admin-key-pair"}
 
 provider "aws" {
