@@ -22,15 +22,15 @@ module "cluster" {
 }
 
 resource "aws_db_instance" "aws-db" {
-    instance_class = "db.t2.micro"
+    instance_class = "db.t3.micro"
     allocated_storage = 20
     engine = "postgres"
-    engine_version = "15.3"
+    engine_version = "13"
     identifier = "aws-db-instance"
-    username = "admin"
-    password = "quarkus"
-    db_name = "mydb"
-    parameter_group_name = "default.postgres15"
+    username = "quarkus"
+    password = "quarkuspassword"
+    db_name = "quarkusdb"
+    parameter_group_name = "default.postgres13"
     skip_final_snapshot = true
 }
 
@@ -44,7 +44,7 @@ resource "aws_instance" "EC2-server" {
 }
 
 resource "aws_ecr_repository" "name" {
-    name = "ecs-demo-repo"
+    name = "quarkus-app"
     image_tag_mutability = "MUTABLE"
     image_scanning_configuration {
         scan_on_push = true
@@ -53,7 +53,7 @@ resource "aws_ecr_repository" "name" {
         prevent_destroy = false
     }
     tags = {
-        Name = "ECR-Repo"
+        Name = "ECR-Repository"
     }
 }
 
@@ -69,7 +69,7 @@ resource "aws_ecs_task_definition" "ecs-task" {
     container_definitions    = jsonencode([
         {
             name  = "app-container"
-            image = "nginx:latest"
+            image = aws_ecr_repository.name.repository_url
             memory = 512
             cpu    = 256
             essential = true
@@ -79,12 +79,21 @@ resource "aws_ecs_task_definition" "ecs-task" {
                     hostPort      = 80
                 }
             ]
+            logConfiguration = {
+                logDriver = "awslogs"
+                options = {
+                    "awslogs-group"         = "/ecs/app-cluster"
+                    "awslogs-region"       = "eu-central-1"
+                    "awslogs-stream-prefix" = "ecs"
+                }
+            }
         }
     ])
+    depends_on = [aws_ecr_repository.name]
 }
 
 resource "aws_ecs_service" "ecs-service" {
-    name            = "ecs-service"
+    name            = "app-service"
     cluster         = aws_ecs_cluster.aws-ecs-cluster.id
     task_definition = aws_ecs_task_definition.ecs-task.arn
     desired_count   = 1
@@ -200,4 +209,8 @@ output "cluster_size" {
 output "secret-details" {
     value = local.aws_secret_key
     sensitive = true
+}
+
+output "ecr_repository_url" {
+    value = aws_ecr_repository.name.repository_url
 }
