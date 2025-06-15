@@ -14,34 +14,81 @@ provider "aws" {
   secret_key = var.aws_secret_key
   region     = "eu-central-1"
 }
-resource "aws_ecr_repository" "name" {
-  name                 = "quarkus-app"
-  image_tag_mutability = "MUTABLE"
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-  lifecycle {
-    prevent_destroy = false
-  }
-  tags = {
-    Name = "ECR-Repository"
-  }
-}
 
-resource "aws_ecs_cluster" "main" {
+resource "aws_ecs_cluster" "app_cluster" {
   name = "quarkus-app-cluster"
   tags = {
     Name = "ECS-Cluster"
   }
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   role       = data.aws_iam_role.ecs_task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ECS Task Definition for Fargate
-resource "aws_ecs_task_definition" "main" {
+//FE Angular App configuration start
+
+# ECS Task Definition for Angular App (Fargate)
+resource "aws_ecs_task_definition" "fe_app_task_def" {
+  family                   = "angular-app-task"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "angular-app-container"
+      image     = data.aws_ecr_repository.fe_app.repository_url
+      essential = true
+      portMappings = [
+        {
+          containerPort = 4200
+          hostPort      = 4200
+        }
+      ]
+        environment = [
+            {
+            name  = "BE_URL"
+            value = aws_lb.be_alb.dns_name
+            }
+        ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = data.aws_cloudwatch_log_group.ecs_log_group.name
+          awslogs-region        = "eu-central-1"
+          awslogs-stream-prefix = "angular"
+        }
+      }
+    }
+  ])
+  tags = {
+    Name = "ECS-Task-Definition-Angular"
+  }
+}
+
+# ECS Fargate Service for Angular Apps
+resource "aws_ecs_service" "fe_app_ecs_service" {
+  name            = "angular-app-service"
+  cluster         = aws_ecs_cluster.app_cluster.id
+  task_definition = aws_ecs_task_definition.fe_app_task_def.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
+    security_groups  = ["sg-009cc415372b1beee"]
+    assign_public_ip = true
+  }
+}
+
+//FE Angular App configuration end
+
+# BE Quarkus App configuration start
+resource "aws_ecs_task_definition" "be_app_task_def" {
   family                   = "quarkus-app-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
@@ -52,7 +99,7 @@ resource "aws_ecs_task_definition" "main" {
   container_definitions = jsonencode([
     {
       name      = "quarkus-app-container"
-      image     = aws_ecr_repository.name.repository_url
+      image     = data.aws_ecr_repository.be_app.repository_url
       essential = true
       portMappings = [
         {
@@ -76,17 +123,84 @@ resource "aws_ecs_task_definition" "main" {
 }
 
 # ECS Fargate Service
-resource "aws_ecs_service" "main" {
+resource "aws_ecs_service" "be_app_service" {
   name            = "quarkus-app-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.main.arn
+  cluster         = aws_ecs_cluster.app_cluster.id
+  task_definition = aws_ecs_task_definition.be_app_task_def.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  load_balancer {
+    target_group_arn = aws_lb_target_group.be_tg.arn
+    container_name   = "quarkus-app-container"
+    container_port   = 8080
+  }
+  depends_on = [aws_lb_listener.be_listener]
   network_configuration {
     subnets          = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
     security_groups  = ["sg-009cc415372b1beee"]
     assign_public_ip = true
+  }
+}
+# BE Quarkus App configuration end
+
+# Security group for ALB
+resource "aws_security_group" "alb_sg" {
+  name        = "be-alb-sg"
+  description = "Allow HTTP inbound traffic"
+  vpc_id      = "vpc-079bb37d3813c4b6a"
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Application Load Balancer
+resource "aws_lb" "be_alb" {
+  name               = "be-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
+}
+
+# Target group for BE service
+resource "aws_lb_target_group" "be_tg" {
+  name     = "be-tg"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = "vpc-079bb37d3813c4b6a"
+  target_type = "ip"
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+# Listener for ALB
+resource "aws_lb_listener" "be_listener" {
+  load_balancer_arn = aws_lb.be_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.be_tg.arn
   }
 }
 
@@ -102,14 +216,22 @@ data "aws_iam_role" "ecs_task_execution" {
   name = "ecsTaskExecutionRole"
 }
 
-data "aws_secretsmanager_secret_version" "secret_version" {
-  secret_id = data.aws_secretsmanager_secret.secret.id
+data "aws_ecr_repository" "be_app" {
+  name = "quarkus-app"
 }
 
-locals {
-  aws_secret_key = jsondecode(data.aws_secretsmanager_secret_version.secret_version.secret_string)["access-secret-key"]
+data "aws_ecr_repository" "fe_app" {
+  name = "angular-app"
 }
 
 output "ecr_repository_url" {
-  value = aws_ecr_repository.name.repository_url
+  value = data.aws_ecr_repository.be_app.repository_url
+}
+
+output "angular_ecr_repository_url" {
+  value = data.aws_ecr_repository.fe_app.repository_url
+}
+
+output "aws_lb_dns_name" {
+  value = aws_lb.be_alb.dns_name
 }
