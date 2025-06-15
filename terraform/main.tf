@@ -34,8 +34,8 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
   family                   = "angular-app-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "1024"
-  memory                   = "2048"
+  cpu                      = "512"
+  memory                   = "1024"
   execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
 
   container_definitions = jsonencode([
@@ -217,8 +217,8 @@ resource "aws_security_group" "alb_sg" {
   vpc_id      = "vpc-079bb37d3813c4b6a"
 
   ingress {
-    from_port   = 80
-    to_port     = 80
+    from_port   = 8080
+    to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
