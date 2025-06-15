@@ -34,8 +34,8 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
   family                   = "angular-app-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = "1024"
+  memory                   = "2048"
   execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
 
   container_definitions = jsonencode([
@@ -78,6 +78,13 @@ resource "aws_ecs_service" "fe_app_ecs_service" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  load_balancer {
+    target_group_arn = aws_lb_target_group.fe_tg.arn
+    container_name   = "angular-app-container"
+    container_port   = 4200
+  }
+  depends_on = [aws_lb_listener.fe_listener]
+
   network_configuration {
     subnets          = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
     security_groups  = ["sg-009cc415372b1beee"]
@@ -85,6 +92,65 @@ resource "aws_ecs_service" "fe_app_ecs_service" {
   }
 }
 
+# Security group for FE ALB
+resource "aws_security_group" "fe_alb_sg" {
+  name        = "fe-alb-sg"
+  description = "Allow HTTP inbound traffic for FE"
+  vpc_id      = "vpc-079bb37d3813c4b6a"
+
+  ingress {
+    from_port   = 4200
+    to_port     = 4200
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Application Load Balancer for FE
+resource "aws_lb" "fe_alb" {
+  name               = "fe-app"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.fe_alb_sg.id]
+  subnets            = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
+}
+
+# Target group for FE service
+resource "aws_lb_target_group" "fe_tg" {
+  name        = "fe-tg"
+  port        = 4200
+  protocol    = "HTTP"
+  vpc_id      = "vpc-079bb37d3813c4b6a"
+  target_type = "ip"
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+# Listener for FE ALB
+resource "aws_lb_listener" "fe_listener" {
+  load_balancer_arn = aws_lb.fe_alb.arn
+  port              = 4200
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.fe_tg.arn
+  }
+}
 //FE Angular App configuration end
 
 # BE Quarkus App configuration start
@@ -167,7 +233,7 @@ resource "aws_security_group" "alb_sg" {
 
 # Application Load Balancer
 resource "aws_lb" "be_alb" {
-  name               = "be-alb"
+  name               = "be-app"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
