@@ -49,12 +49,12 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
           hostPort      = 4200
         }
       ]
-        environment = [
-            {
-            name  = "BE_URL"
-            value = aws_lb.be_alb.dns_name
-            }
-        ]
+      environment = [
+        {
+          name  = "BE_URL"
+          value = aws_lb.be_alb.dns_name
+        }
+      ]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -176,10 +176,10 @@ resource "aws_lb" "be_alb" {
 
 # Target group for BE service
 resource "aws_lb_target_group" "be_tg" {
-  name     = "be-tg"
-  port     = 8080
-  protocol = "HTTP"
-  vpc_id   = "vpc-079bb37d3813c4b6a"
+  name        = "be-tg"
+  port        = 8080
+  protocol    = "HTTP"
+  vpc_id      = "vpc-079bb37d3813c4b6a"
   target_type = "ip"
   health_check {
     path                = "/"
