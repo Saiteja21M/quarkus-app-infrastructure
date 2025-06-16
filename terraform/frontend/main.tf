@@ -15,18 +15,6 @@ provider "aws" {
   region     = "eu-central-1"
 }
 
-resource "aws_ecs_cluster" "app_cluster" {
-  name = "app-cluster"
-  tags = {
-    Name = "ECS-Cluster"
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
-  role       = data.aws_iam_role.ecs_task_execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
 //FE Angular App configuration start
 # ECS Task Definition for Angular App (Fargate)
 resource "aws_ecs_task_definition" "fe_app_task_def" {
@@ -72,7 +60,7 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
 # ECS Fargate Service for Angular Apps
 resource "aws_ecs_service" "fe_app_service" {
   name            = "angular-app-service"
-  cluster         = aws_ecs_cluster.app_cluster.id
+  cluster         = data.aws_ecs_cluster.app_cluster.id
   task_definition = aws_ecs_task_definition.fe_app_task_def.arn
   desired_count   = 1
   launch_type     = "FARGATE"
@@ -133,7 +121,7 @@ resource "aws_lb_listener" "fe_alb_listener" {
 # FE Angular App configuration end
 
 data "aws_cloudwatch_log_group" "ecs_log_group" {
-  name = "/ecs/quarkus-app"
+  name = "/ecs/fe-app"
 }
 
 data "aws_iam_role" "ecs_task_execution" {
@@ -146,6 +134,10 @@ data "aws_ecr_repository" "fe_app" {
 
 data "aws_lb" "be_alb" {
   name = "be-app-service"
+}
+
+data "aws_ecs_cluster" "app_cluster" {
+  cluster_name = "app-cluster"
 }
 
 output "fe_ecr_repository_url" {

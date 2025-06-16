@@ -15,18 +15,6 @@ provider "aws" {
   region     = "eu-central-1"
 }
 
-resource "aws_ecs_cluster" "app_cluster" {
-  name = "app-cluster"
-  tags = {
-    Name = "ECS-Cluster"
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
-  role       = data.aws_iam_role.ecs_task_execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
 # BE Quarkus App configuration start
 # ECS Task Definition for Quarkus App (Fargate)
 resource "aws_ecs_task_definition" "be_app_task_def" {
@@ -72,7 +60,7 @@ resource "aws_ecs_task_definition" "be_app_task_def" {
 # ECS Fargate Service
 resource "aws_ecs_service" "be_app_service" {
   name            = "quarkus-app-service"
-  cluster         = aws_ecs_cluster.app_cluster.id
+  cluster         = data.aws_ecs_cluster.app_cluster.id
   task_definition = aws_ecs_task_definition.be_app_task_def.arn
   desired_count   = 1
   launch_type     = "FARGATE"
@@ -142,6 +130,10 @@ data "aws_iam_role" "ecs_task_execution" {
 
 data "aws_ecr_repository" "be_app" {
   name = "quarkus-app"
+}
+
+data "aws_ecs_cluster" "app_cluster" {
+  cluster_name = "app-cluster"
 }
 
 output "be_ecr_repository_url" {
