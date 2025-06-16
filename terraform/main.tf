@@ -46,7 +46,7 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
       portMappings = [
         {
           containerPort = 80
-          hostPort      = 4200
+          hostPort      = 80
         }
       ]
       logConfiguration = {
