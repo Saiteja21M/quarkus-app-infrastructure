@@ -34,8 +34,8 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
   family                   = "angular-app-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "1024"
-  memory                   = "2048"
+  cpu                      = "512"
+  memory                   = "1024"
   execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
 
   container_definitions = jsonencode([
@@ -45,7 +45,7 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
       essential = true
       portMappings = [
         {
-          containerPort = 4200
+          containerPort = 80
           hostPort      = 4200
         }
       ]
