@@ -75,7 +75,7 @@ resource "aws_ecs_service" "fe_app_service" {
   network_configuration {
     subnets          = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
     security_groups  = ["sg-009cc415372b1beee"]
-    assign_public_ip = false
+    assign_public_ip = true
   }
 }
 
