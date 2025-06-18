@@ -118,6 +118,24 @@ resource "aws_lb_listener" "fe_alb_listener" {
   }
 }
 
+# Create Route 53 Hosted Zone
+resource "aws_route53_zone" "fe_hosted_zone" {
+  name = "cloud.sai.com"
+}
+
+# Create A record for FE app ALB
+resource "aws_route53_record" "fe_app_record" {
+  zone_id = aws_route53_zone.fe_hosted_zone.zone_id
+  name    = "favourite.shows.cloud.sai.com"
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.fe_alb.dns_name
+    zone_id                = aws_lb.fe_alb.zone_id
+    evaluate_target_health = true
+  }
+}
+
 # FE Angular App configuration end
 
 data "aws_cloudwatch_log_group" "ecs_log_group" {
