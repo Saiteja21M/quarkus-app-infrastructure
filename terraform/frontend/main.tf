@@ -120,13 +120,13 @@ resource "aws_lb_listener" "fe_alb_listener" {
 
 # Create Route 53 Hosted Zone
 resource "aws_route53_zone" "fe_hosted_zone" {
-  name = "cloud.sai.com"
+  name = "aws.cloud.sai"
 }
 
 # Create A record for FE app ALB
 resource "aws_route53_record" "fe_app_record" {
   zone_id = aws_route53_zone.fe_hosted_zone.zone_id
-  name    = "favourite-shows.cloud.sai.com"
+  name    = "favourite-shows"
   type    = "A"
 
   alias {
