@@ -1,0 +1,40 @@
+name: 'Terraform'
+
+on:
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.12.0
+        terraform_wrapper: false
+
+    # Generates an execution plan for Terraform
+    - name: Terraform Plan
+      run: |
+        set -e
+        cd terraform/backend
+        terraform fmt
+        terraform fmt -diff -check
+        terraform init
+        terraform validate
+        terraform plan -input=false -var="aws_access_key=${{secrets.AWS_ACCESS_KEY_ID}}" -var="aws_secret_key=${{secrets.AWS_SECRET_ACCESS_KEY}}" -out=tfplan
+
+      # On push to "main", build or change infrastructure according to Terraform configuration files
+      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
+    - name: Terraform Apply
+      run: |
+       cd terraform
+       terraform apply -auto-approve -input=false "tfplan"
