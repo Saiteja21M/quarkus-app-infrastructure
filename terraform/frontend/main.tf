@@ -1,20 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "5.81.0"
-    }
-  }
-}
-variable "aws_access_key" {}
-variable "aws_secret_key" {}
-
-provider "aws" {
-  access_key = var.aws_access_key
-  secret_key = var.aws_secret_key
-  region     = "eu-central-1"
-}
-
 //FE Angular App configuration start
 # ECS Task Definition for Angular App (Fargate)
 resource "aws_ecs_task_definition" "fe_app_task_def" {

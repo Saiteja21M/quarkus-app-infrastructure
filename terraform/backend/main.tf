@@ -1,20 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "5.81.0"
-    }
-  }
-}
-variable "aws_access_key" {}
-variable "aws_secret_key" {}
-
-provider "aws" {
-  access_key = var.aws_access_key
-  secret_key = var.aws_secret_key
-  region     = "eu-central-1"
-}
-
 # --- New VPC and networking resources ---
 resource "aws_vpc" "be_vpc" {
   cidr_block           = "10.0.0.0/16"
@@ -99,6 +82,13 @@ resource "aws_security_group" "be_sg" {
   ingress {
     from_port   = 8080
     to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
