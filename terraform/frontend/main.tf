@@ -15,8 +15,8 @@ resource "aws_ecs_task_definition" "fe_app_task_def" {
       essential = true
       portMappings = [
         {
-          containerPort = 5000
-          hostPort      = 5000
+          containerPort = 4200
+          hostPort      = 4200
         }
       ]
       environment = [
@@ -51,13 +51,13 @@ resource "aws_ecs_service" "fe_app_service" {
   load_balancer {
     target_group_arn = aws_lb_target_group.fe_app_tg.arn
     container_name   = "angular-app-container"
-    container_port   = 5000
+    container_port   = 4200
   }
   depends_on = [aws_lb_listener.fe_alb_listener]
 
   network_configuration {
-    subnets          = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
-    security_groups  = ["sg-009cc415372b1beee"]
+    subnets          = [data.aws_subnet.app_subnet_a.id, data.aws_subnet.app_subnet_b.id, data.aws_subnet.app_subnet_c.id]
+    security_groups  = [data.aws_security_group.app_sg.id]
     assign_public_ip = true
   }
 }
@@ -67,16 +67,16 @@ resource "aws_lb" "fe_alb" {
   name               = "fe-app-service"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = ["sg-009cc415372b1beee"]
-  subnets            = ["subnet-0cb003bdf4847a5da", "subnet-0df54116201e545d0", "subnet-02bc517d0f103bde0"]
+  security_groups    = [data.aws_security_group.app_sg.id]
+  subnets            = [data.aws_subnet.app_subnet_a.id, data.aws_subnet.app_subnet_b.id, data.aws_subnet.app_subnet_c.id]
 }
 
 # Target group for FE app
 resource "aws_lb_target_group" "fe_app_tg" {
   name        = "fe-app-tg"
-  port        = 5000
+  port        = 4200
   protocol    = "HTTP"
-  vpc_id      = "vpc-079bb37d3813c4b6a"
+  vpc_id      = data.aws_vpc.app_vpc.id
   target_type = "ip"
   health_check {
     path                = "/"
@@ -101,14 +101,9 @@ resource "aws_lb_listener" "fe_alb_listener" {
   }
 }
 
-# Create Route 53 Hosted Zone
-resource "aws_route53_zone" "fe_hosted_zone" {
-  name = "cloud-sai.com"
-}
-
 # Create A record for FE app ALB
 resource "aws_route53_record" "fe_app_record" {
-  zone_id = aws_route53_zone.fe_hosted_zone.zone_id
+  zone_id = data.aws_route53_zone.app_zone.zone_id
   name    = "favourite-shows"
   type    = "A"
 
@@ -120,6 +115,48 @@ resource "aws_route53_record" "fe_app_record" {
 }
 
 # FE Angular App configuration end
+
+# Data sources for existing infrastructure
+
+data "aws_route53_zone" "app_zone" {
+  name = "cloud-sai.com"
+}
+
+data "aws_vpc" "app_vpc" {
+  filter {
+    name   = "tag:Name"
+    values = ["app-vpc"]
+  }
+}
+
+data "aws_subnet" "app_subnet_a" {
+  filter {
+    name   = "tag:Name"
+    values = ["app-subnet-a"]
+  }
+}
+
+data "aws_subnet" "app_subnet_b" {
+  filter {
+    name   = "tag:Name"
+    values = ["app-subnet-b"]
+  }
+}
+
+data "aws_subnet" "app_subnet_c" {
+  filter {
+    name   = "tag:Name"
+    values = ["app-subnet-c"]
+  }
+}
+
+data "aws_security_group" "app_sg" {
+  filter {
+    name   = "tag:Name"
+    values = ["app-sg"]
+  }
+  vpc_id = data.aws_vpc.app_vpc.id
+}
 
 data "aws_cloudwatch_log_group" "ecs_log_group" {
   name = "/ecs/fe-app"
